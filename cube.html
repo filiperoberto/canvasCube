@@ -1,0 +1,314 @@
+<html>
+<head>
+    <script type="text/javascript" src="Cube.js"></script>
+    <link href='http://fonts.googleapis.com/css?family=Gudea' rel='stylesheet' type='text/css'>
+    <link rel='stylesheet' type="text/css" href="cube.css">
+    <title>Cube</title>
+</head>
+<body>
+
+<h1>Canvas Cube</h1>
+
+<div class="canvas">
+    <canvas id="myCanvas" width="600" height="554">
+        Seu browser não suporta canvas
+    </canvas>
+</div>
+
+<div class="controls">
+    <div class="option" style="display: none">
+        <div class="label"> Rotate X:</div>
+        <form oninput="rotateCubeX(rotatecube.value)">
+            0<input type="range" name="rotatecube" value="0" max="360"/>360
+        </form>
+
+    </div>
+    <div class="option" style="display: none">
+        <div class="label"> Rotate Y:</div>
+        <form oninput="rotateCubeY(rotatecube.value)">
+            0<input type="range" name="rotatecube" value="0" max="360"/>360
+        </form>
+    </div>
+    <div class="option" style="display: none">
+        <div class="label"> Rotate Z:</div>
+        <form oninput="rotateCubeZ(rotatecube.value)">
+            0<input type="range" name="rotatecube" value="0" min="0" max="360"/>360
+        </form>
+    </div>
+
+    <div class="option button" id="reset">
+        Reset
+    </div>
+
+    <div class="option button" id="showaxis">
+        Show Axis
+    </div>
+
+    <div class="option button" id="circles">
+        Show Circles
+    </div>
+
+    <div class="option button" id="center">
+        Show Center
+    </div>
+
+    <div class="option button" id="numbers">
+        Show Vertice Number
+    </div>
+
+</div>
+
+<div class="controls">
+
+
+    <div class="option">
+        <div class="label"> Zoom:</div>
+        <form oninput="zoom(zoomrange.value)">
+            0<input type="range" name="zoomrange" value="128" min="0" max="500" />500
+        </form>
+    </div>
+
+    <div class="option">
+        <div class="label"> Opacity:</div>
+        <form oninput="opacity(opacityrange.value)">
+            0<input type="range" name="opacityrange" value="0" min="0" max="1" step="0.1"/>1
+        </form>
+    </div>
+
+    <div class="option">
+        <div class="label"> Scale face</div>
+        <input type="number" id="face" value="0" min="0" max="5"/>
+        <form oninput="scaleFace(scaleface.value)">
+            -5<input type="range" name="scaleface" value="1" min="-5" max="5" step="0.01"/>5
+        </form>
+    </div>
+
+    <div class="option button" id="animate">
+        Animate Disabled
+    </div>
+
+    <div class="option">
+        <div class="label">Animation mode</div>
+        <form onclick="changeanimation(animation)">
+            <label for="animateall">all</label>
+            <input type="radio" name="animation" value="all" id="animateall" />
+            <label for="animatex">x</label>
+            <input type="radio" name="animation" value="x" id="animatex" checked/>
+            <br />
+            <label for="animatey">y</label>
+            <input type="radio" name="animation" value="y" id="animatey" />
+            <label for="animatez">z</label>
+            <input type="radio" name="animation" value="z" id="animatez" />
+        </form>
+    </div>
+
+</div>
+
+<div class="controls" style="display: none">
+
+</div>
+
+<script type="text/javascript">
+
+    var canvas = document.getElementById("myCanvas");
+    var cube;
+
+    var animateButton = document.getElementById('animate');
+    var circlesButton = document.getElementById('circles');
+    var resetButton = document.getElementById('reset');
+    var face = document.getElementById('face');
+    var numb = document.getElementById('numbers');
+    var buttonAxis = document.getElementById('showaxis');
+    var center = document.getElementById('center');
+
+    startCube();
+
+    function rotateCubeX(angle) {
+        cube.rotate(parseFloat(angle))
+    }
+
+    function rotateCubeY(angle) {
+        cube.rotate(undefined, parseFloat(angle))
+    }
+
+    function rotateCubeZ(angle) {
+        cube.rotate(undefined, undefined, parseFloat(angle))
+    }
+
+    function scaleCubeX(scale) {
+        cube.scale.x(parseFloat(scale))
+    }
+
+    function scaleCubeY(scale) {
+        cube.scale.y(parseFloat(scale))
+    }
+
+    function scaleCubeZ(scale) {
+        cube.scale.z(parseFloat(scale))
+    }
+
+    var enabled = false;
+    function animate()
+    {
+        cube.animate.doAnimation.apply(cube.animate,[cube]);
+        if(enabled)
+        {
+            enabled = false;
+            animateButton.innerText = "Animate Disabled";
+        }
+        else
+        {
+            enabled = true;
+            animateButton.innerText = "Animate Enabled";
+        }
+    }
+
+    function zoom(value)
+    {
+        cube.zoom = parseFloat(value);
+        cube.draw();
+    }
+
+    function opacity(value)
+    {
+		cube.lineOpacity = 1-parseFloat(value);
+        cube.setOpacity([0,1,2,3,4,5],parseFloat(value));
+        cube.draw();
+    }
+
+    function circles()
+    {
+        cube.drawCircles = !cube.drawCircles;
+        circlesButton.innerText = (cube.drawCircles?"Hide":"Show")+" Circles";
+        cube.draw();
+    }
+
+    function reset()
+    {
+        if(enabled)
+        {
+            enabled = false;
+            cube.animate.doAnimation();
+        }
+        if(cube.drawCircles)
+        {
+            cube.drawCircles = !cube.drawCircles;
+            circlesButton.innerText = (cube.drawCircles?"Hide":"Show")+" Circles";
+        }
+
+        if(!cube.drawNumbers)
+        {
+            cube.drawNumbers = !cube.drawNumbers;
+            numb.innerText = (cube.drawNumbers?"Hide ":"Show ")+"Vertice Number";
+        }
+
+        startCube();
+    }
+
+    function startCube()
+    {
+        cube = new Cube(canvas);
+//        cube.width = 600;
+//        cube.height = 600;
+//        cube.scaleTwoFaces = true;
+        cube.drawFaceNumber = true;
+        cube.drawNumbers = false;
+        cube.drawCubeAxis = true;
+        cube.centerRotate = true;
+        cube.drawCenter = true;
+        cube.animate.justAnAxis = true;
+        cube.animate.speed = 30;
+
+        var elements = document.getElementsByName('animation');
+        for(var i = 0 ; i<elements.length;i++)
+        {
+            elements[i].checked = elements[i].value == 'x';
+        }
+
+        cube.drawAxis = false;
+        buttonAxis.innerText = (cube.drawAxis?"Hide ":"Show ")+"Axis";
+        cube.drawCenter = false;
+        center.innerText = (cube.drawCenter?"Hide ":"Show ")+"Center";
+        cube.drawNumbers = false;
+        numb.innerText = (cube.drawNumbers?"Hide ":"Show ")+"Vertice Number";
+
+        cube.init();
+    }
+
+    function scaleFace(scale)
+    {
+        //cube.scaleFace(face.value,cube.scales[face.value]*scale);
+        cube.scaleFace(face.value,parseFloat(scale));
+    }
+
+    function shownumbers()
+    {
+        cube.drawNumbers = !cube.drawNumbers;
+        numb.innerText = (cube.drawNumbers?"Hide ":"Show ")+"Vertice Number";
+        cube.draw();
+    }
+
+    function changeanimation(elements)
+    {
+        var value;
+        for(var i = 0;i<elements.length;i++)
+        {
+            if(elements[i].checked)
+            {
+                value = elements[i].value;
+                break;
+            }
+        }
+        if(value == 'all')
+        {
+            cube.animate.justAnAxis = false;
+        }
+        else
+        {
+            cube.animate.justAnAxis = true;
+            cube.animate.axis = value;
+        }
+    }
+
+    function showAxis()
+    {
+        cube.drawAxis = !cube.drawAxis;
+        buttonAxis.innerText = (cube.drawAxis?"Hide ":"Show ")+"Axis";
+        cube.draw();
+    }
+
+    function showCenter()
+    {
+        cube.drawCenter = !cube.drawCenter;
+        center.innerText = (cube.drawCenter?"Hide ":"Show ")+"Center";
+        cube.draw();
+    }
+
+    function showFace(evt)
+    {
+        var face = cube.getFace(evt.offsetX,evt.offsetY);
+        if(face !== undefined)
+            cube.showColors([face]);
+    }
+
+    function hideColor()
+    {
+        cube.hideColors([0,1,2,3,4,5]);
+    }
+
+    numb.onclick = shownumbers;
+    buttonAxis.onclick = showAxis;
+    animateButton.onclick = animate;
+    circlesButton.onclick = circles;
+    resetButton.onclick = reset;
+    center.onclick = showCenter;
+
+    canvas.onclick = showFace;
+//    canvas.onmouseout = hideColor;
+    canvas.onmouseup = hideColor;
+
+
+</script>
+</body>
+
+</html>

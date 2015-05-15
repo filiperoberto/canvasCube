@@ -1,0 +1,69 @@
+
+body
+{
+    font-family: 'Gudea', sans-serif;
+}
+
+h1
+{
+    text-align: center;
+}
+
+.canvas
+{
+    float:left;
+}
+.controls
+{
+    float:left;
+    margin: 5px;
+    margin-top:20px;
+    border: 1px solid black;
+    border-radius: 5px;
+    padding: 20px;
+    width: 200px;
+    text-align: center;
+}
+
+.controls .option
+{
+    margin-top: 20px;
+    background: #dcdcdc;
+    border-radius: 5px;
+    -moz-box-shadow: 0 0 5px #888;
+    -webkit-box-shadow: 0 0 5px #888;
+    box-shadow: 0 0 5px #888;
+    width: 190px;
+    height: 63px;
+}
+
+.control .option .label
+{
+
+}
+
+canvas
+{
+    border-radius: 5px;
+    margin-top: 20px;
+}
+
+.button
+{
+    cursor: pointer;
+    line-height: 60px;
+}
+
+.button:hover
+{
+    -moz-box-shadow:0 0 10px #888;
+    -webkit-box-shadow:0 0 10px #888;
+    box-shadow:0 0 10px #888;
+}
+
+.button:active
+{
+    -moz-box-shadow:inset 0 0 10px #888;
+    -webkit-box-shadow:inset 0 0 10px #888;
+    box-shadow:inset 0 0 10px #888;
+}

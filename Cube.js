@@ -161,41 +161,88 @@ function Point3D(x, y, z) {
         var cosa = dot_product / Q_module * M_module;
 
         return Math.acos(cosa) * 180 / Math.PI;
+    };
+
+    this.toString = function()
+    {
+        return 'x: '+this.x+',y: '+this.y+',z: '+this.z;
+    };
+
+    this.reflect = function()
+    {
+        return new Point3D(-this.x,-this.y,-this.z);
     }
 }
 
-function Cube(canvas) {
-    this.canvas = canvas;
+function Cube(__canvas)
+{
+    var canvas = __canvas;
+    var ctx;
+    var fixedFaces = {
+        0 : 'Z',
+        1 : 'X',
+        2 : 'Z',
+        3 : 'X',
+        4 : 'Y',
+        5 : 'Y'
+    };
+
+    var rotationAxis = {
+        actual : 'x',
+        last : 'y',
+        value : new Point3D(0,1,0),
+        x : new Point3D(1,0,0),
+        y : new Point3D(0,1,0),
+        z : new Point3D(0,0,1),
+        actualAngle : {
+            x : 0,
+            y : 0,
+            z : 0
+        }
+    };
+
+    var actualScale = {
+        0 : {value:1,multiplier:-1},
+        1 : {value:1,multiplier:1},
+        2 : {value:1,multiplier:1},
+        3 : {value:1,multiplier:-1},
+        4 : {value:1,multiplier:1},
+        5 : {value:1,multiplier:-1}
+    };
+
+    this.backgroundColor = "rgb(0,0,0)";
     this.backgroundOpacity = 1;
+    this.drawCircles = false;
+    this.drawCircleNumbers = false;
+    this.drawNumbers = false;
+    this.drawCenter = false;
     this.viewDistance = 0.8;
     this.circlesRadius = 10;
     this.dashedPattern = 5;
-    this.animatespeed = 75;
-    this.lineOpacity = 1;
-    this.height = 554;
-    this.width = 818;
+    this.drawAxis = false;
+    this.height = 818;
+    this.width = 554;
     this.zoom = 128;
 
-    this.lineColor = "rgb(255,255,255)";
-    this.backgroundColor = "rgb(0,0,0)";
-    this.circlesColor = "rgb(255,0,0)";
+    this.colors = [
+        {paint:false, color:[255, 0, 0], opacity:1},
+        {paint:false, color:[0, 255, 0], opacity:1},
+        {paint:false, color:[0, 0, 255], opacity:1},
+        {paint:false, color:[255, 255, 0], opacity:1},
+        {paint:false, color:[0, 255, 255], opacity:1},
+        {paint:false, color:[255, 0, 255], opacity:1}
+    ];
 
-    this.center = new Point3D(0,0,0);
+    var translation = new Point3D(0,0,0);
 
-    this.drawFaceNumber = false;
-    this.drawAxisLines = false;
-    this.scaleTwoFaces = false;
-    this.drawCubeAxis = false;
-    this.drawCircles = false;
-    this.drawNumbers = false;
-
-    this.animateAnAxis =
-    {
-        value : false,
-        axis : 'x'
-    };
-
-    this.centerRotate = false;
+    this.faces = [
+        [0, 1, 2, 3],
+        [1, 5, 6, 2],
+        [5, 4, 7, 6],
+        [4, 0, 3, 7],
+        [0, 4, 5, 1],
+        [3, 2, 6, 7]
+    ];
 
     this.vertices = [
         new Point3D(-1, 1, -1),
@@ -208,218 +255,70 @@ function Cube(canvas) {
         new Point3D(-1, -1, 1)
     ];
 
+    var rotationAxisFace = {
+        x : {0:1,1:3},
+        y : {0:4,1:5},
+        z : {0:2,1:0}
+    };
+
     this.actualVertices = this.vertices;
-    this.actualFaces = new Array();
+    this.actualVerticesScale1 = this.vertices;
 
-    // Define the vertices that compose each of the 6 faces. These numbers are
-// indices to the vertex list defined above.
-
-    //     7 -- 6
-    //    /|   /|     +y
-    //   3 -- 2 |     |__ +x
-    //   | 4 -|-5    /
-    //   |/   |/   +z
-    //   0 -- 1
-
-
-    this.faces = [
-        [0, 1, 2, 3],
-        [1, 5, 6, 2],
-        [5, 4, 7, 6],
-        [4, 0, 3, 7],
-        [0, 4, 5, 1],
-        [3, 2, 6, 7]
-    ];
-
-    for(i = 0;i < this.faces.length;i++)
+    this.init = function()
     {
-        this.actualFaces[i] = new Point3D((this.actualVertices[this.faces[i][0]].x + this.actualVertices[this.faces[i][2]].x) / 2, (this.actualVertices[this.faces[i][0]].y + this.actualVertices[this.faces[i][2]].y) / 2, (this.actualVertices[0].z + this.actualVertices[2].z) / 2);
-    }
-
-    this.colors = [
-        {paint:false, color:[255, 0, 0], opacity:1},
-        {paint:false, color:[0, 255, 0], opacity:1},
-        {paint:false, color:[0, 0, 255], opacity:1},
-        {paint:false, color:[255, 255, 0], opacity:1},
-        {paint:false, color:[0, 255, 255], opacity:1},
-        {paint:false, color:[255, 0, 255], opacity:1}
-    ];
-
-    this.angles = {
-        x:45,
-        y:45,
-        z:45,
-        animate:45,
-        last :
-        {
-            x : 0,
-            y : 0,
-            z : 0
+        if (canvas && canvas.getContext) {
+            ctx = canvas.getContext("2d");
         }
+        this.width = canvas.width;
+        this.height = canvas.height;
+
+        var coisa = projectVertices.apply(this,[this.vertices]);
+        this.draw(coisa)
     };
 
-    this.scales =
+    this.draw = function(t)
     {
-        x:1,
-        y:1,
-        z:1,
-        0:1,
-        1:1,
-        2:1,
-        3:1,
-        4:1,
-        5:1
-    };
+        if(t === undefined)
+            t = projectVertices.apply(this,[this.actualVertices]);
 
-    this.scaleFaces =
-    {
-        x:{
-            0:1,
-            1:3,
-            active:3
-        },
-        y:{
-            0:4,
-            1:5,
-            active:4
-        },
-        z:{
-            0:0,
-            1:2,
-            active:0
-        },
-        axisForFace : function(face)
-        {
-            if(this.x[0] == face || this.x[1] == face)
-                return 'x';
-            if(this.y[0] == face || this.y[1] == face)
-                return 'y';
-            if(this.z[0] == face || this.z[1] == face)
-                return 'z';
-            return undefined;
-        }
-    };
-
-    this.fixedVertice = {
-        2:{
-            5:{
-                1:0,
-                3:1
-            },
-            4:{
-                1:3,
-                3:2
-            }
-        },
-        0:{
-            5:{
-                1:4,
-                3:5
-            },
-            4:{
-                1:7,
-                3:6
-            }
-        }
-    };
-
-    this.fixedFaces = {
-        x : [1,3],
-        y : [4,5],
-        z : [0,2],
-        lastPosition : [new Point3D(0,0,0),new Point3D(0,0,0)]
-    };
-
-    var lastCenter = new Point3D(0,0,0);
-    var lastAngleChange = {
-        actual : 'x',
-        last : 'y',
-        value : 0,
-        axis : new Point3D(1,0,0)
-    };
-    var defaultAxis = {
-        x : new Point3D(1,0,0),
-        y : new Point3D(0,1,0),
-        z : new Point3D(0,0,1)
-    };
-    var cen1 = {x:0,y:0};
-    var cen2 = {x:0,y:0};
-    var scaled = false;
-    var rotated = true;
-    var moved = false;
-    var lastposition;
-
-
-    this.init = function () {
-        if (this.canvas && this.canvas.getContext) {
-            ctx = this.canvas.getContext("2d");
-            var t = processVertices.apply(this,[this.vertices]);
-            this.draw(t);
-        }
-    };
-
-    this.arrayToRGB = function (arr) {
-        if (arr.length == 3) {
-            return "rgb(" + arr[0] + "," + arr[1] + "," + arr[2] + ")";
-        }
-        return "rgb(0,0,0)";
-    };
-
-
-    this.erase = function()
-    {
-        ctx.fillStyle = this.backgroundColor;
-        ctx.fillRect(0, 0, this.width, this.height);
-    };
-
-
-    this.draw = function (t) {
-
-        var self = this;
-
-        ctx.fillStyle = this.backgroundColor;
-        ctx.globalAlpha = this.backgroundOpacity;
-        ctx.fillRect(0, 0, this.width, this.height);
-
-        ctx.strokeStyle = this.lineColor;
+        drawBackGround.call(this);
+        ctx.strokeStyle = "rgb(255,255,255)";
         ctx.lineJoin = "round";
 
-        if(t == undefined)
-        {
-            t = processVertices.call(self);
-        }
+        var avg_z = calculateAvg_Z.apply(this,[t]);
 
-        var avg_z = new Array();
+        var avg_total_z = calculateAvg_Z_Total.apply(this,[avg_z]);
 
-        for (i = 0; i < this.faces.length; i++) {
-            f = this.faces[i];
-            avg_z[i] = {"index":i, "z":(t[f[0]].z + t[f[1]].z + t[f[2]].z + t[f[3]].z) / 4.0};
-        }
+        var centers = calculateCenterFaces.call(this);
 
-        avg_z.sort(function (a, b) {
-            return b.z - a.z;
-        });
+        var centerDone = false;
+        var axisDone = false;
 
-        var avg_total_z = 0;
-        for (i = 0; i < avg_z.length; i++) {
-            avg_total_z += avg_z[i].z;
-        }
-        avg_total_z /= avg_z.length;
+        if (this.drawNumbers)
+            for (i = 0; i < t.length; i++) {
+                var actualStroke = ctx.strokeStyle;
+                drawLine(t[i],t[i].translate(8,-8),'rgb(0,255,0)');
+                drawText(t[i].x+8, t[i].y-8,i,'rgb(0,255,0)');
 
-        var done = new Array();
+                ctx.strokeStyle = actualStroke;
+            }
 
         for (var i = 0; i < this.faces.length; i++) {
             var f = this.faces[avg_z[i].index];
 
-            if (this.drawCircles) {
+            if(this.drawCircles)
+            {
                 if (avg_z[i].z > avg_total_z)
                     ctx.globalAlpha = 0.3;
                 else
                     ctx.globalAlpha = 1;
-                var face = this.actualFaces[avg_z[i].index].project(self.width, self.height, self.zoom, self.viewDistance);
-                drawCircle(face.x,face.y,this.drawFaceNumber ? avg_z[i].index : undefined)
+
+                var circle = centers[avg_z[i].index].translate(-translation.x,-translation.y,-translation.z).project(this.width, this.height, this.zoom, this.viewDistance);
+                drawCircle.apply(this,[circle.x, circle.y]);
+//                drawText(circle.x - 3, circle.y + 4, fixedFaces[avg_z[i].index]);
+                if(this.drawCircleNumbers)
+                    drawText(circle.x - 3, circle.y + 4, avg_z[i].index);
             }
-            ctx.globalAlpha = 1;
 
             ctx.beginPath();
 
@@ -427,9 +326,9 @@ function Cube(canvas) {
                 ctx.lineWidth = 1;
                 ctx.globalAlpha = 0.3;
 
-                drawDashedLine({from:{x:t[f[0]].x, y:t[f[0]].y}, to:{x:t[f[1]].x, y:t[f[1]].y}}, f[0], f[1]);
-                drawDashedLine({from:{x:t[f[1]].x, y:t[f[1]].y}, to:{x:t[f[2]].x, y:t[f[2]].y}}, f[1], f[2]);
-                drawDashedLine({from:{x:t[f[2]].x, y:t[f[2]].y}, to:{x:t[f[3]].x, y:t[f[3]].y}}, f[2], f[3]);
+                drawDashedLine.apply(this,[{from:{x:t[f[0]].x, y:t[f[0]].y}, to:{x:t[f[1]].x, y:t[f[1]].y}}, f[0], f[1]]);
+                drawDashedLine.apply(this,[{from:{x:t[f[1]].x, y:t[f[1]].y}, to:{x:t[f[2]].x, y:t[f[2]].y}}, f[1], f[2]]);
+                drawDashedLine.apply(this,[{from:{x:t[f[2]].x, y:t[f[2]].y}, to:{x:t[f[3]].x, y:t[f[3]].y}}, f[2], f[3]]);
 
                 if (this.colors[avg_z[i].index].paint) {
                     ctx.closePath();
@@ -444,7 +343,7 @@ function Cube(canvas) {
                     ctx.lineTo(t[f[3]].x, t[f[3]].y);
                     ctx.closePath();
                     ctx.stroke();
-                    ctx.strokeStyle = self.lineColor;
+                    ctx.strokeStyle = "rgb(255,255,255)";
                 }
             }
             else {
@@ -453,222 +352,235 @@ function Cube(canvas) {
                 ctx.lineTo(t[f[1]].x, t[f[1]].y);
                 ctx.lineTo(t[f[2]].x, t[f[2]].y);
                 ctx.lineTo(t[f[3]].x, t[f[3]].y);
-                ctx.globalAlpha = this.lineOpacity;
+                ctx.globalAlpha = 1;
                 ctx.closePath();
                 ctx.stroke();
             }
-
 
             if (this.colors[avg_z[i].index].paint) {
                 ctx.fillStyle = this.arrayToRGB(this.colors[avg_z[i].index].color);
                 ctx.globalAlpha = this.colors[avg_z[i].index].opacity;
-                ctx.closePath();
                 ctx.fill();
             }
-            else {
-                ctx.closePath();
-                ctx.stroke();
+
+            if(i < 3 && !centerDone && this.drawCenter)
+            {
+                ctx.globalAlpha = 1;
+                var center = calculateCenter.call(this);
+                center = center.translate(-translation.x,-translation.y,-translation.z).project(this.width, this.height, this.zoom, this.viewDistance);
+
+                drawCircle.apply(this,[center.x,center.y,'rgb(0,150,255)']);
+                drawText(center.x - 4,center.y + 3,'O');
+                centerDone = true;
+
             }
 
-        }
+            if(i<3 && !axisDone && this.drawAxis)
+            {
+                if(this.drawAxis)
+                {
+                    var actualstroke = ctx.strokeStyle;
 
-        if (this.drawNumbers)
-            for (i = 0; i < t.length; i++) {
-                drawVerticeNumber(i, t[i].x, t[i].y)
-            }
+                    var uno = rotationAxis.x.scale(.5,.5,.5).translate(-translation.x, -translation.y, -translation.z).project(this.width, this.height, this.zoom, this.viewDistance);
+                    var uno_ = rotationAxis.x.scale(.5,.5,.5).reflect().translate(-translation.x, -translation.y, -translation.z).project(this.width, this.height, this.zoom, this.viewDistance);
+                    drawText(uno.x - 4, uno.y + 3, 'x');
+                    drawText(uno_.x - 4, uno_.y + 3, 'x');
+                    drawLine.apply(this, [uno, uno_]);
 
-        if (this.drawAxisLines) {
-            drawAxisLines();
-        }
+                    var dos = rotationAxis.y.scale(.5,.5,.5).translate(-translation.x, -translation.y, -translation.z).project(this.width, this.height, this.zoom, this.viewDistance);
+                    var dos_ = rotationAxis.y.scale(.5,.5,.5).reflect().translate(-translation.x, -translation.y, -translation.z).project(this.width, this.height, this.zoom, this.viewDistance);
+                    drawText(dos.x - 4, dos.y + 3, 'y');
+                    drawText(dos_.x - 4, dos_.y + 3, 'y');
+                    drawLine.apply(this, [dos, dos_]);
 
-        function drawAxisLines() {
-            var axis = [
-                new Point3D(0, 0, 0),
-                new Point3D(1, 0, 0),
-                new Point3D(0, 1, 0),
-                new Point3D(0, 0, 1)
-            ];
+                    var tres = rotationAxis.z.scale(.5,.5,.5).translate(-translation.x, -translation.y, -translation.z).project(this.width, this.height, this.zoom, this.viewDistance);
+                    var tres_ = rotationAxis.z.scale(.5,.5,.5).reflect().translate(-translation.x, -translation.y, -translation.z).project(this.width, this.height, this.zoom, this.viewDistance);
+                    drawText(tres.x - 4, tres.y + 3, 'z');
+                    drawText(tres_.x - 4, tres_.y + 3, 'z');
+                    drawLine.apply(this, [tres, tres_]);
 
-            ctx.beginPath();
-            ctx.lineWidth = 1;
-            ctx.strokeStyle = "rgb(255,255,255)";
-
-            var projectedX = axis[1].project(self.width, self.height, self.zoom, self.viewDistance);
-            var projectedY = axis[2].project(self.width, self.height, self.zoom, self.viewDistance);
-            var projectedZ = axis[3].project(self.width, self.height, self.zoom, self.viewDistance);
-            var projectedOrigin = axis[0].project(self.width, self.height, self.zoom, self.viewDistance);
-
-            ctx.moveTo(projectedX.x, projectedX.y);
-            ctx.lineTo(projectedOrigin.x, projectedOrigin.y);
-            ctx.lineTo(projectedY.x, projectedY.y);
-            ctx.moveTo(projectedZ.x, projectedZ.y);
-            ctx.lineTo(projectedOrigin.x, projectedOrigin.y);
-
-            ctx.font = "10px Arial";
-            ctx.fillStyle = "rgb(255,255,255)"
-            ctx.fillText('x', projectedX.x + 5, projectedX.y + 5);
-            ctx.fillText('y', projectedY.x + 5, projectedY.y + 5);
-            ctx.fillText('z', projectedZ.x + 5, projectedZ.y + 5);
-
-            ctx.closePath();
-            ctx.stroke();
-        }
-
-        function drawVerticeNumber(number, x, y) {
-            ctx.beginPath();
-            ctx.lineWidth = 1;
-            ctx.strokeStyle = "rgb(255,0,0)";
-            ctx.moveTo(x, y);
-            ctx.lineTo(x - 8, y - 8);
-
-            ctx.font = "10px Arial";
-            ctx.fillStyle = "rgb(255,0,0)"
-            ctx.fillText(number, x - 10, y - 10, 10);
-            ctx.closePath();
-            ctx.stroke();
-        }
-
-        function drawCircle(x, y, number) {
-            ctx.beginPath();
-            ctx.fillStyle = self.circlesColor;
-            ctx.arc(x, y, self.circlesRadius, 0, Math.PI * 2, true);
-
-            ctx.closePath();
-            ctx.fill();
-
-            if (number !== undefined) {
-                ctx.beginPath();
-                ctx.lineWidth = 1;
-                ctx.font = "10px Arial";
-                ctx.fillStyle = "rgb(255,255,255)"
-                ctx.fillText(number, x - 2, y + 2, 10);
-                ctx.closePath();
-                ctx.stroke();
-            }
-
-        }
-
-
-        function drawDashedLine(line, pointA, pointB) {
-            if (!doneContains(pointA, pointB)) {
-                done[done.length] = new Array(pointA, pointB);
-                ctx.dashedLine(line.from.x, line.from.y, line.to.x, line.to.y, self.dashedPattern);
-            }
-            else {
-                ctx.moveTo(line.to.x, line.to.y);
+                    ctx.strokeStyle = actualstroke;
+                    axisDone = true;
+                }
             }
         }
 
-        function doneContains(a, b) {
-            for (var i = 0; i < done.length; i++) {
-                if (done[i][0] == b && done[i][1] == a)
-                    return true;
-            }
-            return false;
-        }
 
     };
 
-    this.rotate = function (angleX, angleY, angleZ) {
-        this.angles.last.x = this.angles.x;
-        this.angles.last.y = this.angles.y;
-        this.angles.last.z = this.angles.z;
-        lastAngleChange.last= lastAngleChange.actual;
-        if(this.angles.x != angleX && angleX !== undefined)
-        {
-            this.angles.x = angleX !== undefined ? angleX : this.angles.x;
-            lastAngleChange.actual = 'x';
-        }
-        if(this.angles.y != angleY  && angleY !== undefined)
-        {
-            this.angles.y = angleY !== undefined ? angleY : this.angles.y;
-            lastAngleChange.actual = 'y';
-        }
-        if(this.angles.z != angleZ  && angleZ !== undefined)
-        {
-            this.angles.z = angleZ !== undefined ? angleZ : this.angles.z;
-            lastAngleChange.actual = 'z';
-        }
-
-        this.draw();
-    };
 
     this.scaleFace = function(face,scale)
     {
-        var axis = this.scaleFaces.axisForFace(face);
-        if(axis !== undefined)
+        var vertices = processScale.apply(this, [face, (-1 + actualScale[face].value * actualScale[face].multiplier)*-1]);
+
+        this.actualVertices = vertices;
+
+        var value = -1 + scale * actualScale[face].multiplier;
+
+        vertices = processScale.apply(this, [face, value]);
+
+        this.actualVertices = vertices;
+
+        var center = calculateCenter.call(this);
+        var origin = new Point3D(0,0,0);
+        var dif = new Point3D(origin.x - center.x,origin.y - center.y,origin.z - center.z);
+
+        for(var i = 0;i<vertices.length;i++)
         {
-            if(this.scaleFaces[axis].active != face)
-            {
-                this.scaleFaces[axis].active = face;
-                this.draw();
-            }
-            this.scales[this.scaleFaces[axis].active] = scale;
-
-            if(this.scaleFaces[axis][0]==face)
-                scale += this.scales[this.scaleFaces[axis][1]]-1;
-            else
-                scale += this.scales[this.scaleFaces[axis][0]]-1;
-            this.scale[axis](scale);
+            vertices[i] = vertices[i].translate(dif.x,dif.y,dif.z);
         }
+        translation = translation.translate(dif.x,dif.y,dif.z);
+
+        var t = projectVertices.apply(this, [vertices]);
+
+        actualScale[face].value = scale;
+
+        this.draw(t);
     };
 
-    this.scale = {
-        cube:this,
-
-        x : function (scale) {
-            scaled = true;
-            this.cube.scales.x = scale;
-            this.cube.draw();
-
-        },
-        y : function (scale) {
-            scaled = true;
-            this.cube.scales.y = scale;
-            this.cube.draw();
-        },
-        z : function (scale) {
-            scaled = true;
-            this.cube.scales.z = scale;
-            this.cube.draw();
-        }
-    };
-
-    var animated = undefined;
-    var enabled = false;
-    this.animate = function () {
+    function processScale(face,_scale)
+    {
         var self = this;
+        var vertices = self.actualVertices;
+        var axis = fixedFaces[face].toLowerCase();
 
-        if (!enabled) {
-            animated = setInterval(function () {
+        var scaleAxis = rotationAxis[axis];
 
-                if(!self.animateAnAxis.value)
-                {
-                    self.rotate(self.angles.animate, self.angles.animate, self.angles.animate);
-                    self.angles.animate++;
-                }
-                else
-                {
-                    switch(self.animateAnAxis.axis)
-                    {
-                        case 'x':
-                            self.rotate(self.angles.animate, undefined, undefined);
-                            break;
-                        case 'y':
-                            self.rotate(undefined, self.angles.animate, undefined);
-                            break;
-                        case 'z':
-                            self.rotate(undefined, undefined, self.angles.animate);
+        for(var i = 0;i<vertices.length;i++)
+        {
+            if(self.faces[face].contains(i))
+            {
+                var Sx = scaleAxis.x*_scale;
+                var Sy = scaleAxis.y*_scale;
+                var Sz = scaleAxis.z*_scale;
+                vertices[i] = vertices[i].translate(Sx,Sy,Sz);
+
+            }
+        }
+
+        return vertices;
+    }
+
+    this.rotate = function(angleX,angleY,angleZ)
+    {
+        var angles = {
+            x : angleX,
+            y : angleY,
+            z : angleZ
+        };
+
+        for(var key in angles)
+        {
+            if (angles.hasOwnProperty(key))
+                if (angles[key] !== undefined)
+                    drawRotation.apply(this, [angles[key], key])
+        }
+
+    };
+
+    function drawRotation(angle,axis)
+    {
+        var self = this;
+        rotationAxis.actual = axis;
+        var vertices = processRotation.apply(this, [angle, axis]);
+        var t = projectVertices.apply(this, [vertices]);
+
+        self.draw(t);
+    }
+
+    function processRotation(_angle,axis)
+    {
+        var self = this;
+        var vertices = new Array();
+        var center = calculateCenter.call(this);
+
+        var faces = calculateCenterFaces.call(this);
+
+        var angle = _angle - rotationAxis.actualAngle[axis];
+        if(rotationAxis.actual != rotationAxis.last)
+        {
+            rotationAxis[axis] = faces[rotationAxisFace[axis][0]];
+            rotationAxis.value = rotationAxis[axis];
+            rotationAxis.last = rotationAxis.actual;
+        }
+        for(var i = 0; i < self.actualVertices.length;i++)
+        {
+            var r = self.actualVertices[i];
+            r = r.arbitraryrotateAxis(rotationAxis.value,center,angle);
+            vertices.push(r);
+        }
+
+        self.actualVertices = vertices;
+
+        faces = calculateCenterFaces.call(this);
+
+        rotationAxis.x = faces[rotationAxisFace.x[0]];
+        rotationAxis.y = faces[rotationAxisFace.y[0]];
+        rotationAxis.z = faces[rotationAxisFace.z[0]];
+
+        rotationAxis.actualAngle[axis] = _angle;
+
+        return vertices;
+    }
+
+    this.animate =
+    {
+        doAnimation:function (cube) {
+            var self = this;
+            var last = 'x';
+
+            if (!this.enabled) {
+                this.interval = setInterval(function () {
+
+                    if (!self.justAnAxis) {
+                        cube.rotate(self.angle, self.angle, self.angle);
                     }
-                    self.angles.animate++;
-                }
-            }, this.animatespeed);
-            enabled = true;
+                    else {
+
+                        if(self.axis != last)
+                        {
+                            self.angle = rotationAxis.actualAngle[self.axis];
+                            last = self.axis;
+                        }
+                        switch (self.axis) {
+                            case 'x':
+                                cube.rotate(self.angle);
+                                break;
+                            case 'y':
+                                cube.rotate(undefined, self.angle);
+                                break;
+                            case 'z':
+                                cube.rotate(undefined, undefined, self.angle);
+                        }
+                    }
+                    self.angle++;
+
+                }, this.speed);
+                this.enabled = true;
+            }
+            else {
+                this.enabled = false;
+                clearInterval(this.interval);
+            }
+        },
+        justAnAxis : false,
+        axis : 'x',
+        angle : 0,
+        speed : 75,
+        enabled : false,
+        interval : undefined
+    };
+
+    this.setOpacity = function (faces, value) {
+        if(value == 0)
+            this.hideColors(faces);
+        else
+            this.showColors(faces);
+        for (var i = 0; i < faces.length; i++) {
+            if (faces[i] >= 0 && faces[i] < 6)
+                this.colors[faces[i]].opacity = value;
         }
-        else {
-            enabled = false;
-            clearInterval(animated);
-        }
+        this.draw();
     };
 
     this.showColors = function (faces) {
@@ -687,179 +599,160 @@ function Cube(canvas) {
         this.draw();
     };
 
-    this.setOpacity = function (faces, value) {
-        if(value == 0)
-            this.hideColors(faces);
-        else
-            this.showColors(faces);
-        for (var i = 0; i < faces.length; i++) {
-            if (faces[i] >= 0 && faces[i] < 6)
-                this.colors[faces[i]].opacity = value;
+    this.arrayToRGB = function (arr) {
+        if (arr.length == 3) {
+            return "rgb(" + arr[0] + "," + arr[1] + "," + arr[2] + ")";
         }
-        this.draw();
+        return "rgb(0,0,0)";
     };
 
-    this.move = function(x,y,z)
+    this.erase = function()
     {
-        this.center = new Point3D(x,y,z);
-        moved = true;
+        ctx.fillStyle = this.backgroundColor;
+        ctx.globalAlpha = this.backgroundOpacity;
+        ctx.fillRect(0, 0, this.width, this.height);
     };
 
-    //{0:[255,255,255,1],[0:[255,255,255,1]]}
-
-    this.setColors = function (colors) {
-        for(var face in colors)
+    this.getFace =function(x,y)
+    {
+        var faces = calculateCenterFaces.call(this);
+        for(var i=0;i<faces.length;i++)
         {
-            if(this.faces[face])
-            {
-                if(colors[face].length == 4)
-                {
-                    this.colors[face].opacity = colors[face].pop();
-                    this.colors[face].color =  colors[face];
-                }
-            }
+            var face = faces[i].translate(-translation.x,-translation.y,-translation.z).project(this.width, this.height, this.zoom, this.viewDistance);
+
+            if(x < (face.x + this.circlesRadius*2) && x > (face.x - this.circlesRadius*2) && y < (face.y + this.circlesRadius*2) && y > (face.y - this.circlesRadius*2))
+                return i;
         }
-        this.draw();
+        return undefined;
+
     };
 
-    this.translationX = function(value)
-    {
-        this.translations.x = value;
-        this.draw();
-    };
 
-    function processScale(vertices) {
-        var scaledVertices = new Array();
+    var done = new Array();
 
-        for (i = 0; i < vertices.length; i++) {
-
-            var r = vertices[i];
-
-            if (!this.scaleTwoFaces) {
-
-                if (this.faces[this.scaleFaces.z.active].contains(i)) {
-                    r = r.scale(1, 1, this.scales.z)
-                }
-
-                if (this.faces[this.scaleFaces.x.active].contains(i)) {
-                    r = r.scale(this.scales.x, 1, 1)
-                }
-
-                if (this.faces[this.scaleFaces.y.active].contains(i)) {
-                    r = r.scale(1, this.scales.y, 1)
-                }
-
-            }
-            else {
-                r = r.scale(this.scales.x, this.scales.y, this.scales.z);
-            }
-            scaledVertices.push(r);
+    function doneContains(a, b) {
+        for (var i = 0; i < done.length; i++) {
+            if (done[i][0] == b && done[i][1] == a)
+                return true;
         }
-        return scaledVertices;
+        return false;
     }
 
-    var coisa = 0;
+    function projectVertices(vertices)
+    {
+        var projected = new Array();
+        var self = this;
 
-    function processRotation(scaledVertices,center) {
-        var rotatedVertices = new Array();
-        var dif = new Point3D(0, 0, 0);
+        for(var i = 0;i < vertices.length;i++)
+        {
+            projected.push(vertices[i].translate(-translation.x,-translation.y,-translation.z).project(self.width, self.height, self.zoom, self.viewDistance))
+        }
 
-        if (scaled && !this.scaleTwoFaces) {
-            for (i = 0; i < scaledVertices.length; i++) {
-                var r = scaledVertices[i];
+        return projected;
+    }
 
-
-                r = r.arbitraryrotateX(center, this.angles.x).arbitraryrotateY(center, this.angles.y).arbitraryrotateZ(center, this.angles.z);
-
-                if (i == this.fixedVertice[this.scaleFaces.z.active][this.scaleFaces.y.active][this.scaleFaces.x.active] && !lastposition.equals(r)) {  //vertice fixo ao escalar
-                    if (!this.scaleFaces.changedConfiguration)
-                        dif = new Point3D(lastposition.x - r.x, lastposition.y - r.y, lastposition.z - r.z)
-                }
-
-                rotatedVertices.push(r);
-            }
+    function drawDashedLine(line, pointA, pointB) {
+        var self = this;
+        if (!doneContains(pointA, pointB)) {
+            done[done.length] = new Array(pointA, pointB);
+            ctx.dashedLine(line.from.x, line.from.y, line.to.x, line.to.y, self.dashedPattern);
         }
         else {
-
-
-            for (i = 0; i < scaledVertices.length; i++) {
-                var r = scaledVertices[i];
-                r = r.translate(lastCenter.x - center.x, lastCenter.y - center.y, lastCenter.z - center.z);  //muda a posicao do centro para girar em torno de si mesmo
-                switch(lastAngleChange.actual)
-                {
-                    case 'x':
-                        r = r.arbitraryrotateX(lastCenter, this.angles.x).arbitraryrotateY(lastCenter, this.angles.y).arbitraryrotateZ(lastCenter, this.angles.z);
-                        break;
-                    case 'y':
-                        r = r.arbitraryrotateY(lastCenter, this.angles.y).arbitraryrotateZ(lastCenter, this.angles.z).arbitraryrotateX(lastCenter, this.angles.x);
-                        break;
-                    case 'z':
-                        r = r.arbitraryrotateZ(lastCenter, this.angles.z).arbitraryrotateX(lastCenter, this.angles.x).arbitraryrotateY(lastCenter, this.angles.y);
-                }
-
-                rotatedVertices.push(r);
-            }
-
-            lastAngleChange.last = lastAngleChange.actual;
-
-        }
-        return {rotatedVertices:rotatedVertices, dif:dif};
-    }
-
-    function processTranslation(rotatedVertices, dif) {
-        var t = new Array();
-        var translatedVertices = new Array();
-        this.actualVertices = new Array();
-
-        for (i = 0; i < rotatedVertices.length; i++) {
-            r = rotatedVertices[i];
-            if (scaled && !this.scaleTwoFaces)
-                r = r.translate(dif.x, dif.y, dif.z); //ajusta para que vertice fixo fique na sua posicao
-
-            if (i == this.fixedVertice[this.scaleFaces.z.active][this.scaleFaces.y.active][this.scaleFaces.x.active]) {
-                lastposition = r;
-            }
-
-            var p = r.project(this.width, this.height, this.zoom, this.viewDistance);
-            t.push(p);
-            translatedVertices.push(r);
-            this.actualVertices.push(r);
-        }
-
-        calculateFaceCenters.call(this);
-        return {translatedVertices:translatedVertices,t:t};
-    }
-
-    function calculateFaceCenters() {
-        for (i = 0; i < this.faces.length; i++) {
-            this.actualFaces[i] = new Point3D((this.actualVertices[this.faces[i][0]].x + this.actualVertices[this.faces[i][2]].x) / 2, (this.actualVertices[this.faces[i][0]].y + this.actualVertices[this.faces[i][2]].y) / 2, (this.actualVertices[0].z + this.actualVertices[2].z) / 2);
+            ctx.moveTo(line.to.x, line.to.y);
         }
     }
 
-    function processVertices(vertices) {
+    function drawText(x,y,text,color)
+    {
+        if(text != undefined)
+        {
+            ctx.beginPath();
+            ctx.lineWidth = 1;
+            ctx.font = "10px Arial";
+            if(color)
+                ctx.fillStyle = color;
+            else
+                ctx.fillStyle = "rgb(255,255,255)";
+            ctx.fillText(text, x, y, 10);
+            ctx.closePath();
+            ctx.stroke();
+        }
+    }
 
-        if (vertices === undefined)
-            vertices = this.vertices;
+    function drawLine(from,to,color)
+    {
+        ctx.beginPath();
+        if(color)
+            ctx.strokeStyle = color;
+        else
+            ctx.strokeStyle = "rgb(255,0,0)";
+        ctx.globalAlpha = 0.5;
+        ctx.moveTo(from.x,from.y);
+        ctx.lineTo(to.x,to.y);
+        ctx.closePath();
+        ctx.stroke();
+    }
 
-        var scaledVertices;
-        scaledVertices = processScale.apply(this, [vertices]);
+    function drawCircle(x,y,color)
+    {
+        var self = this;
+        ctx.beginPath();
+        if(color)
+            ctx.fillStyle = color;
+        else
+            ctx.fillStyle = 'rgb(255,0,0)';
+        ctx.arc(x, y, self.circlesRadius, 0, Math.PI * 2, true);
 
-        var center = new Point3D((scaledVertices[0].x + scaledVertices[6].x) / 2, (scaledVertices[0].y + scaledVertices[6].y) / 2, (scaledVertices[0].z + scaledVertices[6].z) / 2);
+        ctx.closePath();
+        ctx.fill();
+    }
 
-        var __ret = processRotation.apply(this, [scaledVertices, center]);
-        var rotatedVertices = __ret.rotatedVertices;
-        var dif = __ret.dif;
+    function drawBackGround()
+    {
+        var self = this;
+        ctx.fillStyle = "rgb(0,0,0)";
+        ctx.globalAlpha = 1;
+        ctx.fillRect(0, 0, self.width, self.height);
+    }
 
-        var __ret_tranlataion = processTranslation.apply(this,[rotatedVertices, dif]);
-        var translatedVertices = __ret_tranlataion.translatedVertices;
-        var t = __ret_tranlataion.t;
+    function calculateAvg_Z_Total(avg_z) {
+        var avg_total_z = 0;
+        for (i = 0; i < avg_z.length; i++) {
+            avg_total_z += avg_z[i].z;
+        }
+        avg_total_z /= avg_z.length;
+        return avg_total_z;
+    }
 
-        if (scaled)
-            lastCenter = new Point3D((translatedVertices[0].x + translatedVertices[6].x) / 2, (translatedVertices[0].y + translatedVertices[6].y) / 2, (translatedVertices[0].z + translatedVertices[6].z) / 2);
+    function calculateAvg_Z(t) {
+        var self = this;
+        var avg_z = new Array();
 
-        scaled = false;
-        moved = false;
-        rotated = false;
-        return t;
+        for (i = 0; i < self.faces.length; i++) {
+            f = self.faces[i];
+            avg_z[i] = {"index":i, "z":(t[f[0]].z + t[f[1]].z + t[f[2]].z + t[f[3]].z) / 4.0};
+        }
+
+        avg_z.sort(function (a, b) {
+            return b.z - a.z;
+        });
+        return avg_z;
+    }
+
+    function calculateCenterFaces()
+    {
+        var self = this;
+        var centers = new Array();
+        for(i = 0;i < self.faces.length;i++)
+        {
+            centers[i] = new Point3D((self.actualVertices[self.faces[i][0]].x + self.actualVertices[self.faces[i][2]].x) / 2, (self.actualVertices[self.faces[i][0]].y + self.actualVertices[self.faces[i][2]].y) / 2, (self.actualVertices[self.faces[i][0]].z + self.actualVertices[self.faces[i][2]].z) / 2);
+        }
+        return centers;
+    }
+
+    function calculateCenter()
+    {
+        var self = this;
+        return new Point3D((self.actualVertices[0].x+self.actualVertices[6].x)/2,(self.actualVertices[0].y+self.actualVertices[6].y)/2,(self.actualVertices[0].z+self.actualVertices[6].z)/2)
     }
 }
